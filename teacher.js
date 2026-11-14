@@ -1,7 +1,7 @@
 (() => {
   const api = window.ClassroomAPI, $ = id => document.getElementById(id);
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  let key = '', rows = [], polling, generation = 0, loading = false;
+  let key = '', rows = [], polling, generation = 0, loading = false, legacy = false;
   const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const time = s => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(s));
   const score = r => Math.round((r.clues.length + r.stories.length + Number(r.finished)) / 13 * 100);
@@ -24,7 +24,10 @@
       rows = data; render(); $('load-error').textContent = '';
       $('updated').textContent = `${time(new Date())}에 확인 · 10초마다 새로 확인합니다. (한국 시간)`;
     } catch (e) {
-      if (current === generation) $('load-error').textContent = '새 기록을 불러오지 못했습니다. 표시된 내용은 마지막으로 확인한 기록입니다. ' + e.message;
+      if (current === generation) {
+        if (e.status === 401 || e.status === 403) { logout(); $('login-error').textContent = '접속이 만료됐어요. 교사 접속 코드를 다시 입력해 주세요.'; }
+        else $('load-error').textContent = '새 기록을 불러오지 못했습니다. 표시된 내용은 마지막으로 확인한 기록입니다. ' + e.message;
+      }
     } finally {
       loading = false; $('refresh').disabled = false;
       if (key && (current !== generation || date !== $('day').value)) refresh();
@@ -33,22 +36,36 @@
   $('day').value = today();
   $('login-form').onsubmit = async e => {
     e.preventDefault(); const candidate = $('teacher-key').value.trim(), button = e.currentTarget.querySelector('button');
-    if (!/^[a-f0-9]{64}$/.test(candidate)) { $('login-error').textContent = '설정할 때 받은 교사 접속 키를 확인해 주세요.'; return; }
+    if (!/^(?:[0-9]{4}|[a-f0-9]{64})$/.test(candidate)) { $('login-error').textContent = '교사 접속 코드 네 자리를 입력해 주세요.'; return; }
     button.disabled = true; $('login-error').textContent = '접속 확인 중…';
     try {
-      rows = await api.rpc('milky_teacher', { p_key: candidate, p_day: $('day').value });
-      key = candidate; generation++; $('teacher-key').value = ''; $('login-error').textContent = '';
+      let accessKey;
+      legacy = false;
+      try {
+        const result = await api.rpc('milky_teacher_login', { p_code: candidate });
+        if (!result.ok) throw new Error(result.retry_after > 0 ? `입력 시도가 많아 잠시 쉬고 있어요. ${Math.ceil(result.retry_after / 60)}분 후 다시 입력해 주세요.` : '접속 코드가 맞지 않아요. 다시 확인해 주세요.');
+        accessKey = result.session_key;
+      } catch (err) {
+        // Keep existing long-key login usable while the server migration is being applied.
+        if (err.status === 404 && /^[a-f0-9]{64}$/.test(candidate)) { accessKey = candidate; legacy = true; }
+        else if (err.status === 404) throw new Error('접속 코드 변경 설정을 적용하는 중입니다. 잠시 후 다시 시도해 주세요.');
+        else throw err;
+      }
+      rows = await api.rpc('milky_teacher', { p_key: accessKey, p_day: $('day').value });
+      key = accessKey; generation++; $('teacher-key').value = ''; $('login-error').textContent = '';
       $('login').hidden = true; $('dashboard').hidden = false; render();
       $('updated').textContent = `${time(new Date())}에 확인 · 10초마다 새로 확인합니다. (한국 시간)`;
       polling = setInterval(() => { if (!document.hidden) refresh(); }, 10000);
     } catch (err) { $('login-error').textContent = err.message; }
     finally { button.disabled = false; }
   };
-  $('logout').onclick = () => {
+  function logout() {
+    if (key && !legacy) api.rpc('milky_teacher_logout', { p_session: key }).catch(() => {});
     key = ''; rows = []; generation++; clearInterval(polling);
     $('students').innerHTML = ''; $('stats').innerHTML = ''; $('load-error').textContent = '';
     $('dashboard').hidden = true; $('login').hidden = false; $('teacher-key').focus();
-  };
+  }
+  $('logout').onclick = logout;
   $('search').oninput = render; $('filter').onchange = render;
   $('day').onchange = () => { generation++; rows = []; render(); $('updated').textContent = $('day').value ? '날짜의 기록을 불러오는 중…' : '확인할 입장 날짜를 선택해 주세요.'; refresh(); };
   $('refresh').onclick = refresh;

@@ -43,12 +43,12 @@ Supabase가 연결되면 이름만 입력해 입장합니다. 이름과 진행 �
 
 ## 교사 진행률 연결
 
-1. 본인 계정의 Supabase 프로젝트 SQL Editor에서 `supabase-setup.sql`을 실행합니다.
+1. 본인 계정의 Supabase 프로젝트 SQL Editor에서 `supabase-setup.sql` 다음 `teacher-auth.sql`을 실행합니다. 기존 프로젝트는 `teacher-auth.sql`만 적용합니다. 기본 설정을 다시 실행했다면 인증 설정도 다시 적용하세요.
 2. 결과의 `teacher_access_key`는 교사만 보관합니다. 첫 실행에서만 표시되고 재실행해도 바뀌지 않습니다. 저장소에 커밋하지 마세요.
 3. `classroom-config.js`에는 Project URL과 **publishable key**만 넣습니다. `service_role`이나 secret key는 사용하지 않습니다.
 4. 학생은 게임 주소에서 이름을 입력합니다. 교사는 `teacher.html`에서 교사 접속 키를 입력합니다.
 
-학생 이름과 단서 9개·이야기 3개·수첩 완료 여부만 전송합니다. 학생별 임의 토큰은 해시로 검증하며, 다른 학생 목록과 테이블 직접 접근을 허용하지 않습니다. 교사 접속 키는 메모리에서만 유지됩니다. 이름만으로 동일 학생을 인증하는 구조가 아니므로 새 탭/새 기기는 새 입장 기록이며, 날짜와 입장 시간으로 구별합니다. 이 진행률은 학습 활동 확인용이며 부정행위 방지나 평가 인증 도구가 아닙니다.
+학생 이름과 단서 9개·이야기 3개·수첩 완료 여부만 전송합니다. 학생별 임의 토큰은 해시로 검증하며, 다른 학생 목록과 테이블 직접 접근을 허용하지 않습니다. 교사 코드는 서버에서 검증하고, 접속 후에는 8시간 유효한 임의 세션 토큰을 메모리에만 유지합니다. 접속 코드를 5회 틀리면 프로젝트 전체에서 새 로그인을 5분간 제한합니다. 이미 열린 세션은 계속 조회할 수 있습니다. 로그아웃·만료·코드 변경 후에는 기존 세션으로 조회할 수 없습니다. 이름만으로 동일 학생을 인증하는 구조가 아니므로 새 탭/새 기기는 새 입장 기록이며, 날짜와 입장 시간으로 구별합니다. 이 진행률은 학습 활동 확인용이며 부정행위 방지나 평가 인증 도구가 아닙니다.
 
 키를 분실한 경우 SQL Editor에서 아래를 실행하면 기존 교사 키를 교체할 수 있습니다. 새 키를 안전하게 보관하세요.
 
@@ -58,4 +58,4 @@ changed as (update milky_private.teacher set token_hash=sha256(convert_to(k.toke
 select k.token as teacher_access_key from k join changed on changed.token_hash=sha256(convert_to(k.token,'UTF8'));
 ```
 
-`node classroom-test.cjs`는 이름 입장·복원·개인 글 비전송을 검사합니다. `@electric-sql/pglite`를 설치한 개발 환경에서 `node db-test.cjs`로 실제 PostgreSQL 권한·잘못된 토큰·진행률 검증을 실행할 수 있습니다. 테스트 데이터는 메모리 DB에만 생성됩니다.
+`node classroom-test.cjs`는 이름 입장·복원·개인 글 비전송을 검사합니다. `node teacher-ui-test.cjs`는 숫자 코드와 오류 표시를 검사합니다. `@electric-sql/pglite`를 설치한 개발 환경에서 `node db-test.cjs`와 `node teacher-auth-test.cjs`로 실제 PostgreSQL 권한·진행률·로그인 잠금·세션 만료를 검증합니다. 테스트 데이터는 메모리 DB에만 생성됩니다.
