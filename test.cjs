@@ -20,7 +20,7 @@ const context = vm.createContext({
   window: { scrollTo() {}, addEventListener() {}, innerWidth:1280, innerHeight:720, matchMedia(){return {matches:false}} },
   requestAnimationFrame() { return 1; }, cancelAnimationFrame() {}, setTimeout, console, assert
 });
-for (const file of ['app.js', 'pixel-art.js', 'missions.js', 'adventure.js']) vm.runInContext(fs.readFileSync(file, 'utf8'), context);
+for (const file of ['app.js', 'pixel-art.js', 'adventure.js']) vm.runInContext(fs.readFileSync(file, 'utf8'), context);
 vm.runInContext(`
 assert.equal(canStand(500, 220), false, 'pond blocks movement');
 assert.equal(canStand(225, 125), false, 'houses block movement');
@@ -40,25 +40,8 @@ for(let i=0;i<3;i++) {
   meet(i); choice=cases[i].options[0]; phase=1; game();
   assert.equal(activeCase,i); assert.equal(journals[i].opened.size,0);
   for(let k=0;k<3;k++) {
-    awardClue(k);assert.equal(finding,null,'unsolved mission cannot award a clue');
-    collect(k);assert.ok(missionDialog.open);assert.equal(dialogOpen,true,'mission pauses the world');
-    assert.equal(journals[i].opened.size,k,'opening a mission gives no clue');
-    claimMission();assert.equal(finding,null,'unsolved mission claim is rejected');
-    if(k===0){
-      chooseSeal((mission.targets[0].id+1)%9);assert.equal(mission.roundDone,false);
-      chooseSeal(mission.targets[0].id);nextSealRound();chooseSeal(mission.targets[1].id);
-    } else if(k===1){
-      flipMissionCard(0);flipMissionCard(0);assert.equal(mission.flipped.length,1,'same card cannot match itself');
-      const wrong=mission.deck.findIndex(c=>c.pair!==mission.deck[0].pair);flipMissionCard(wrong);
-      assert.equal(mission.matched.size,0);resetMismatch();
-      for(let pair=0;pair<3;pair++) {const ids=mission.deck.flatMap((c,n)=>c.pair===pair?[n]:[]);ids.forEach(flipMissionCard);}
-    } else {
-      [2,1,0].forEach(chooseOrder);checkOrder();assert.equal(mission.won,false);
-      undoOrder();undoOrder();undoOrder();[0,1,2].forEach(chooseOrder);checkOrder();
-    }
-    assert.equal(mission.won,true,'mission solved');
-    assert.equal(journals[i].opened.size,k,'mission success waits for reward button');
-    claimMission();assert.ok(finding,'reward starts discovery animation');
+    collect(k);assert.ok(finding,'investigation directly starts discovery animation');
+    assert.equal(journals[i].opened.size,k,'clue waits for discovery animation');
     const pending=finding;collect(k);assert.equal(finding,pending,'repeat input does not restart animation');
     updateAnimation(.4);assert.equal(journals[i].opened.size,k);
     updateAnimation(.41);assert.equal(journals[i].opened.size,k+1,'clue awarded once at end');
@@ -84,7 +67,8 @@ function characterFrame(walk) { const marks=[];const pen={save(){},restore(){},t
 assert.notEqual(characterFrame(1),characterFrame(3),'alternating walk frames change limb positions');
 delete records[0];meet(0);choice=cases[0].options[0];phase=1;game();collect(0);home();updateAnimation(1);
 assert.equal(journals[0].opened.size,0,'leaving a discovery cancels its pending reward');
-missionWins.delete('0:0');collect(0);exitMission();assert.equal(journals[0].opened.size,0,'cancelled puzzle gives no clue');
-assert.equal(mission,null);assert.equal(dialogOpen,false);
+collect(-1);assert.equal(finding,null,'invalid clue is ignored');
+collect(0);updateAnimation(1);assert.equal(journals[0].opened.size,1);
+dialog.querySelector('button').onclick();collect(0);assert.equal(journals[0].opened.size,1,'revisiting does not duplicate progress');
 `, context);
-console.log('PASS: 9 puzzle gates, wrong answers/retries, memory mismatch, ordered actions, reward/cancel safety, movement and story flow');
+console.log('PASS: 9 direct clues, discovery animation, duplicate/cancel safety, movement and story flow');
