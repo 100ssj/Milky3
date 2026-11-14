@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const nodes = new Map();
 function element(id) {
   if (!nodes.has(id)) nodes.set(id, {
-    innerHTML: '', textContent: '', hidden: true, open: false,
+    innerHTML: '', textContent: '', hidden: true, open: false, style: {}, appendChild() {},
     addEventListener(name, fn) { this['on' + name] = fn; },
     querySelector() { return element('child'); }, querySelectorAll() { return []; },
     focus() {}, setAttribute() {}, getContext() { return new Proxy({}, {get:(o,k)=>o[k]||(()=>{})}); }, showModal() { this.open = true; },
@@ -48,5 +48,8 @@ assert.equal(worldActive,false,'reflection pauses exploration');
 home();held.add('ArrowRight');pauseMenu();assert.equal(held.size,0,'menu clears held movement');
 assert.equal(dialogOpen,true,'menu pauses world');dialog.close();assert.equal(dialogOpen,false);
 resizeWorld();draw(0,false);assert.equal(mapCanvas.width,427,'pixel canvas matches viewport');
+assert.ok(labels.some(l=>l.label==='루루'),'character label queued independently from sprites');
+assert.ok(labelNodes.length>=labels.length,'text uses browser-rendered labels');
+assert.ok(labelNodes[0].style.fontSize.endsWith('px'),'labels use CSS pixels, not upscaled bitmap text');
 `, context);
 console.log('PASS: movement, boundaries, collision, diagonal speed, all 3 clue journeys, book unlock, reflection escaping');
